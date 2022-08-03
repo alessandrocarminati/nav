@@ -40,6 +40,47 @@ func Connect_db(t *Connect_token) *sql.DB {
 	return db
 }
 
+func get_entries_by_name(db *sql.DB, name string) ([]Entry, error) {
+	var entries []Entry
+	var tmp_entry, entry Entry
+	var last_entry_id int = -1
+	var s sql.NullString
+
+	query := "select sym_id, symbol, exported, type, subsys, fn from (select * from symbols, kernel_file where symbols.fn_id=kernel_file.id) as dummy left outer join tags on dummy.fn_id=tags.fn_id where symbol=$1 order by sym_id"
+	rows, err := db.Query(query, name)
+	if err != nil {
+		panic(err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		if err := rows.Scan(&tmp_entry.Sym_id, &tmp_entry.Symbol, &tmp_entry.Exported, &tmp_entry.Type, &s, &tmp_entry.Fn); err != nil {
+			fmt.Println(err)
+			return entries, err
+		}
+		if last_entry_id != tmp_entry.Sym_id {
+			if last_entry_id != -1 {
+				entries = append(entries, entry)
+			}
+			entry.Sym_id = tmp_entry.Sym_id
+			entry.Symbol = tmp_entry.Symbol
+			entry.Exported = tmp_entry.Exported
+			entry.Type = tmp_entry.Type
+			entry.Fn = tmp_entry.Fn
+			entry.Subsys = []string{}
+		} else {
+			if s.Valid {
+				entry.Subsys = append(entry.Subsys, s.String)
+			}
+		}
+		last_entry_id = tmp_entry.Sym_id
+	}
+	if last_entry_id != -1 {
+		entries = append(entries, entry)
+	}
+	return entries, nil
+}
+
 func get_entry_by_id(db *sql.DB, symbol_id int, cache map[int]Entry) (Entry, error) {
 	var e Entry
 	var s sql.NullString
